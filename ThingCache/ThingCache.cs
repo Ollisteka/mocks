@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using FakeItEasy;
+using FluentAssertions;
 using NUnit.Framework;
 
 namespace MockFramework
@@ -43,9 +45,73 @@ namespace MockFramework
 		[SetUp]
 		public void SetUp()
 		{
-			//thingService = A...
+			thingService = A.Fake<IThingService>();
 			thingCache = new ThingCache(thingService);
 		}
+
+		[Test]
+		public void Cache_Should_CallService_When_NoKeyFoundInside()
+		{
+			thingCache.Get(thingId1);
+			A.CallTo(()=>thingService.TryRead(thingId1, out thing1)).MustHaveHappened();
+		}
+
+		[Test]
+		public void Cache_ShouldNot_CallService_When_KeyFoundInside()
+		{
+			A.CallTo(() => thingService.TryRead(thingId1, out thing1))
+				.Returns(true);
+
+			thingCache.Get(thingId1);
+			thingCache.Get(thingId1);
+
+			A.CallTo(() => thingService.TryRead(thingId1, out thing1))
+				.MustHaveHappened(Repeated.Exactly.Once);
+		}
+
+		[Test]
+		public void DoNotCall_TryRead_If_NotRequiered()
+		{
+			A.CallTo(() => thingService.TryRead(thingId1, out thing1))
+				.Returns(true);
+			A.CallTo(() => thingService.TryRead(thingId2, out thing2))
+				.Returns(true);
+
+			thingCache.Get(thingId1);
+			thingCache.Get(thingId1);
+
+			A.CallTo(() => thingService.TryRead(thingId2, out thing2))
+				.MustHaveHappened(Repeated.Never);
+		}
+
+		[Test]
+		public void Cache_ReturnsNull_When_KeyNotFoundInService()
+		{
+			A.CallTo(() => thingService.TryRead(thingId1, out thing1))
+				.Returns(false);
+			thingCache.Get(thingId1).Should().BeNull();
+		}
+
+		[Test]
+		public void DoNotCache_when_ItemDoesNotExists()
+		{
+			A.CallTo(() => thingService.TryRead(thingId1, out thing1))
+				.Returns(false);
+			thingCache.Get(thingId1);
+			thingCache.Get(thingId1);
+			A.CallTo(() => thingService.TryRead(thingId1, out thing1))
+				.MustHaveHappened(Repeated.Exactly.Twice);
+		}
+		[Test]
+		public void Cache_ReturnsCorrectThing()
+		{
+			const string id = "BackPack";
+			var newThing = new Thing(id);
+			A.CallTo(() => thingService.TryRead(id, out newThing))
+				.Returns(true);
+			thingCache.Get(id).Should().Be(newThing);
+		}
+
 
 		//TODO: написать простейший тест, а затем все остальные
 		//Live Template tt работает!
